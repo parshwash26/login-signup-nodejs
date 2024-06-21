@@ -15,6 +15,16 @@ const UserSchema = new Schema(
       required: true,
       unique: true,
     },
+    service: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    verificationToken: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     email: {
       type: String,
       required: true,
