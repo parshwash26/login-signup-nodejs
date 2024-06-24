@@ -1,34 +1,28 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
-const { v4: uuidv4 } = require("uuid");
 
 const UserSchema = new Schema(
   {
-    userid: {
-      type: String,
-      required: true,
-      unique: true,
-      default: uuidv4,
-    },
     username: {
       type: String,
       required: true,
-      unique: true,
     },
     service: {
       type: String,
       required: true,
-      unique: true,
     },
     verificationToken: {
       type: String,
       required: true,
-      unique: true,
     },
     email: {
       type: String,
       required: true,
       unique: true,
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        "Please fill a valid email address",
+      ],
     },
     password: {
       type: String,
@@ -45,14 +39,6 @@ const UserSchema = new Schema(
     isActive: {
       type: Boolean,
       default: true,
-    },
-    resetPasswordToken: {
-      type: String,
-      default: null,
-    },
-    resetPasswordExpiry: {
-      type: Date,
-      default: null,
     },
   },
   { timestamps: true }

@@ -1,9 +1,9 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-const generateVerificationToken = (userId) => {
+const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: "5M",
+    expiresIn: "1H",
   });
 };
 
@@ -75,14 +75,13 @@ const decryptVerificationCode = (encryptedCode) => {
 
     return decryptedData;
   } catch (error) {
-    console.log(error);
     console.error("Error decrypting verification code:", error.message);
     throw new Error("Failed to decrypt verification code");
   }
 };
 
 module.exports = {
-  generateVerificationToken,
+  generateToken,
   encryptVerificationCode,
   decryptVerificationCode,
 };
