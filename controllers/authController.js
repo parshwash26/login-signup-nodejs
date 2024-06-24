@@ -51,6 +51,8 @@ exports.signup = async (req, res, next) => {
     user.service = service;
     await user.save();
 
+    console.log({ verificationToken, verificationCode });
+
     const transporter = createTransporter(service);
 
     const mailOptions = {
@@ -260,59 +262,101 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const payload = {
-      user: {
-        id: user.id,
-      },
-    };
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" },
-      (err, token) => {
-        if (err) {
-          console.error("Error signing JWT:", err.message);
-          return res.status(500).json({ msg: "Failed to log in" });
-        }
-        res.status(200).json({ token });
-      }
-    );
+    res.status(200).json({ msg: "Login successful", token });
   } catch (err) {
-    console.error("Error logging in user:", err.message);
-    res.status(500).json({ msg: "Failed to log in" });
+    console.error("Error logging in:", err.message);
+    res.status(500).json({ msg: "Failed to login. Please try again later." });
   }
 };
 
 exports.changePassword = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+  const { email, oldPassword, newPassword, confirmPassword } = req.body;
+
+  if (newPassword !== confirmPassword) {
+    return res
+      .status(400)
+      .json({ msg: "New password and confirm password do not match" });
   }
 
-  const { email, oldPassword, newPassword } = req.body;
-
   try {
-    let user = await User.findOne({ email });
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
     }
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
+
     if (!isMatch) {
-      return res.status(400).json({ msg: "Invalid old password" });
+      return res.status(400).json({ msg: "Incorrect old password" });
     }
 
-    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    user.password = hashedNewPassword;
+    user.password = hashedPassword;
     await user.save();
 
     res.status(200).json({ msg: "Password changed successfully" });
   } catch (err) {
     console.error("Error changing password:", err.message);
     res.status(500).json({ msg: "Failed to change password" });
+  }
+};
+
+exports.sendResetPasswordEmail = async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ msg: "Email is required." });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found." });
+    }
+
+    const resetToken = generateToken(user._id);
+
+    const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Password Reset",
+      html: `
+        <p>Hello ${user.username},</p>
+        <p>You requested to reset your password. Click the link below to reset your password:</p>
+        <a href="${resetLink}">Reset Password</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you did not request this, please ignore this email.</p>
+      `,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending reset password email:", error);
+        return res.status(500).json({
+          msg: "Error sending reset password email. Please try again later.",
+        });
+      } else {
+        res.status(200).json({
+          msg: "Reset password email sent successfully.",
+        });
+      }
+    });
+  } catch (err) {
+    console.error("Error sending reset password email:", err.message);
+    res.status(500).json({
+      msg: "An error occurred while sending reset password email. Please try again later.",
+    });
   }
 };
 
@@ -328,13 +372,16 @@ exports.resetPassword = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
+
     const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    user.password = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
     await user.save();
 
     res.status(200).json({ msg: "Password reset successfully" });
